@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}{{ questionnaire.title }} - Kuesioner{% endblock %}
+
+{% block extra_css %}
+<style>
+    .survey-form {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .form-intro {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .question-block {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .question-number {
+        color: #6c757d;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .question-text {
+        font-size: 1.125rem;
+        font-weight: 500;
+        margin-bottom: 1rem;
+    }
+
+    /* Star Rating */
+    .star-rating {
+        display: flex;
+        flex-direction: row-reverse;
+        justify-content: flex-end;
+        gap: 0.25rem;
+    }
+
+    .star-rating input {
+        display: none;
+    }
+
+    .star-rating label {
+        cursor: pointer;
+        font-size: 2rem;
+        color: #ddd;
+        transition: color 0.2s;
+    }
+
+    .star-rating label:hover,
+    .star-rating label:hover ~ label,
+    .star-rating input:checked ~ label {
+        color: #ffc107;
+    }
+
+    .star-rating label:hover ~ label:last-child,
+    .star-rating input:checked ~ label:last-child {
+        color: #ddd;
+    }
+
+    .rating-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+
+    /* Text Area */
+    textarea.form-control {
+        width: 100%;
+        min-height: 100px;
+        padding: 0.75rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 1rem;
+        font-family: inherit;
+        resize: vertical;
+    }
+
+    textarea.form-control:focus {
+        outline: none;
+        border-color: #4a90a4;
+        box-shadow: 0 0 0 3px rgba(74, 144, 164, 0.1);
+    }
+
+    /* Respondent Info */
+    .respondent-info {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .respondent-info h3 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        font-size: 1.125rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
+
+    .btn-submit {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.125rem;
+    }
+
+    .error-message {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 0.75rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="survey-form">
+        <div class="form-intro">
+            <h1>{{ questionnaire.title }}</h1>
+            {% if questionnaire.description %}
+            <p>{{ questionnaire.description }}</p>
+            {% endif %}
+            <p class="text-muted">Please answer all questions. Your feedback is important to us!</p>
+        </div>
+
+        <form id="surveyForm" onsubmit="submitSurvey(event)">
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+            <!-- Optional Respondent Info -->
+            <div class="respondent-info">
+                <h3>Your Information (Optional)</h3>
+                <div class="form-group">
+                    <label for="respondentName">Name</label>
+                    <input type="text" id="respondentName" name="respondentName" class="form-control" placeholder="Your name (optional)">
+                </div>
+                <div class="form-group">
+                    <label for="respondentContact">Contact (Email/Phone)</label>
+                    <input type="text" id="respondentContact" name="respondentContact" class="form-control" placeholder="Email or phone (optional)">
+                </div>
+            </div>
+
+            <!-- Questions -->
+            <input type="hidden" id="questionnaireId" value="{{ questionnaire.id }}">
+            {% for question in questions %}
+            <div class="question-block" data-question-id="{{ question.id }}" data-question-type="{{ question.question_type }}">
+                <div class="question-number">Question {{ loop.index }}</div>
+                <div class="question-text">{{ question.question_text }}</div>
+
+                {% if question.question_type == 'rating' %}
+                <div class="star-rating">
+                    <input type="radio" id="q{{ question.id }}_5" name="q{{ question.id }}" value="5">
+                    <label for="q{{ question.id }}_5" title="Very Satisfied">★</label>
+
+                    <input type="radio" id="q{{ question.id }}_4" name="q{{ question.id }}" value="4">
+                    <label for="q{{ question.id }}_4" title="Satisfied">★</label>
+
+                    <input type="radio" id="q{{ question.id }}_3" name="q{{ question.id }}" value="3">
+                    <label for="q{{ question.id }}_3" title="Neutral">★</label>
+
+                    <input type="radio" id="q{{ question.id }}_2" name="q{{ question.id }}" value="2">
+                    <label for="q{{ question.id }}_2" title="Dissatisfied">★</label>
+
+                    <input type="radio" id="q{{ question.id }}_1" name="q{{ question.id }}" value="1">
+                    <label for="q{{ question.id }}_1" title="Very Dissatisfied">★</label>
+                </div>
+                <div class="rating-labels">
+                    <span>Very Dissatisfied</span>
+                    <span>Very Satisfied</span>
+                </div>
+                {% else %}
+                <textarea class="form-control" name="q{{ question.id }}_text" placeholder="Enter your answer here..."></textarea>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <button type="submit" class="btn btn-primary btn-submit" id="submitBtn">
+                Submit Survey
+            </button>
+        </form>
+
+        <div id="successMessage" style="display: none; text-align: center; padding: 2rem;">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">✓</div>
+            <h2>Thank You!</h2>
+            <p>Your feedback has been submitted successfully.</p>
+            <a href="/" class="btn btn-primary">Back to Surveys</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/survey.js"></script>
+{% endblock %}

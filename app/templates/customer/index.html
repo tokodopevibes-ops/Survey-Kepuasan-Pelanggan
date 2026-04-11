@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Surveys - Kuesioner{% endblock %}
+
+{% block body %}
+<div class="container">
+    <header class="header">
+        <h1>Customer Satisfaction Survey</h1>
+        <p class="subtitle">We value your feedback. Please select a survey below.</p>
+    </header>
+
+    <main class="main-content">
+        {% if questionnaires %}
+        <div class="survey-list">
+            {% for questionnaire in questionnaires %}
+            <div class="survey-card">
+                <h2>{{ questionnaire.title }}</h2>
+                {% if questionnaire.description %}
+                <p class="survey-description">{{ questionnaire.description }}</p>
+                {% endif %}
+                <a href="/survey/{{ questionnaire.id }}" class="btn btn-primary">
+                    Take Survey
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No active surveys available at the moment.</p>
+            <p>Please check back later.</p>
+        </div>
+        {% endif %}
+    </main>
+
+    <footer class="footer">
+        <p>&copy; 2026 Kuesioner. Thank you for your feedback!</p>
+    </footer>
+</div>
+{% endblock %}

@@ -1,0 +1,365 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Questionnaires - Admin Panel{% endblock %}
+{% block page_title %}Questionnaires{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="showCreateModal()">+ New Questionnaire</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>Questions</th>
+                    <th>Responses</th>
+                    <th class="table-hide-small">Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="questionnairesTable">
+                <tr><td colspan="6" class="text-center">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Create/Edit Modal -->
+<div id="questionnaireModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalTitle">📋 Create Questionnaire</h2>
+            <button class="modal-close" onclick="closeModal('questionnaireModal')"><span>&times;</span></button>
+        </div>
+        <form id="questionnaireForm" onsubmit="saveQuestionnaire(event)">
+            <input type="hidden" id="questionnaireId">
+            <div class="form-group">
+                <label for="title">📝 Title *</label>
+                <input type="text" id="title" class="form-control" placeholder="Enter questionnaire title" required>
+            </div>
+            <div class="form-group">
+                <label for="description">📄 Description</label>
+                <textarea id="description" class="form-control" rows="3" placeholder="Brief description (optional)"></textarea>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="isActive" checked>
+                    <span>✅ Active</span>
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('questionnaireModal')">✕ Cancel</button>
+                <button type="submit" class="btn btn-primary" id="saveQuestionnaireBtn">✓ Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Questions Modal -->
+<div id="questionsModal" class="modal" style="display: none;">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h2 id="questionsModalTitle">Manage Questions</h2>
+            <button class="modal-close" onclick="closeModal('questionsModal')"><span>&times;</span></button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-actions">
+                <button class="btn btn-primary" onclick="showAddQuestion()">➕ Add Question</button>
+            </div>
+            <div id="questionsList"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Question Modal -->
+<div id="questionModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="questionModalTitle">➕ Add Question</h2>
+            <button class="modal-close" onclick="closeModal('questionModal')"><span>&times;</span></button>
+        </div>
+        <form id="questionForm" onsubmit="saveQuestion(event)">
+            <input type="hidden" id="questionId">
+            <input type="hidden" id="questionQuestionnaireId">
+            <div class="form-group">
+                <label for="questionText">❓ Question Text *</label>
+                <textarea id="questionText" class="form-control" rows="3" placeholder="Enter your question here" required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="questionType">📊 Question Type *</label>
+                <select id="questionType" class="form-control" required>
+                    <option value="rating">⭐ Rating (1-5 Stars)</option>
+                    <option value="text">💬 Text</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="orderNumber">🔢 Order</label>
+                <input type="number" id="orderNumber" class="form-control" value="0" min="0" placeholder="0">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('questionModal')">✕ Cancel</button>
+                <button type="submit" class="btn btn-primary" id="saveQuestionBtn">✓ Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+    let currentQuestionnaireId = null;
+
+    async function loadQuestionnaires() {
+        const response = await apiCall('/admin/questionnaires');
+        if (!response.ok) return;
+        const data = await response.json();
+
+        const tbody = document.getElementById('questionnairesTable');
+        tbody.innerHTML = '';
+
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">No questionnaires found</td></tr>';
+            return;
+        }
+
+        data.forEach(q => {
+            const statusBadge = q.is_active
+                ? '<span class="badge badge-success">Active</span>'
+                : '<span class="badge badge-secondary">Inactive</span>';
+            const toggleClass = q.is_active ? 'btn-warning' : 'btn-success';
+            const toggleText = q.is_active ? 'Deactivate' : 'Activate';
+            const createdDate = new Date(q.created_at).toLocaleDateString('id-ID', {
+                day: 'numeric', month: 'short', year: 'numeric'
+            });
+
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${q.title}</strong></td>
+                    <td>${statusBadge}</td>
+                    <td>${q.question_count}</td>
+                    <td>${q.response_count}</td>
+                    <td class="table-hide-small">${createdDate}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-secondary" onclick="manageQuestions(${q.id}, '${q.title.replace(/'/g, "\\'")}')">Questions</button>
+                            <button class="btn btn-sm btn-info" onclick="viewResults(${q.id})">Results</button>
+                            <button class="btn btn-sm btn-secondary" onclick="editQuestionnaire(${q.id})">Edit</button>
+                            <button class="btn btn-sm ${toggleClass}" onclick="toggleQuestionnaire(${q.id})">${toggleText}</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteQuestionnaire(${q.id})">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function showCreateModal() {
+        document.getElementById('modalTitle').textContent = '📋 Create Questionnaire';
+        document.getElementById('questionnaireForm').reset();
+        document.getElementById('questionnaireId').value = '';
+        document.getElementById('isActive').checked = true;
+        document.getElementById('saveQuestionnaireBtn').innerHTML = '✓ Save';
+        document.getElementById('saveQuestionnaireBtn').disabled = false;
+        openModal('questionnaireModal');
+        setTimeout(() => document.getElementById('title').focus(), 100);
+    }
+
+    function editQuestionnaire(id) {
+        apiCall(`/admin/questionnaires/${id}`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('modalTitle').textContent = '✏️ Edit Questionnaire';
+                document.getElementById('questionnaireId').value = data.id;
+                document.getElementById('title').value = data.title;
+                document.getElementById('description').value = data.description || '';
+                document.getElementById('isActive').checked = data.is_active;
+                document.getElementById('saveQuestionnaireBtn').innerHTML = '✓ Save';
+                document.getElementById('saveQuestionnaireBtn').disabled = false;
+                openModal('questionnaireModal');
+            });
+    }
+
+    async function saveQuestionnaire(event) {
+        event.preventDefault();
+        const id = document.getElementById('questionnaireId').value;
+        const data = {
+            title: document.getElementById('title').value,
+            description: document.getElementById('description').value || null,
+            is_active: document.getElementById('isActive').checked
+        };
+
+        const url = id ? `/admin/questionnaires/${id}` : '/admin/questionnaires';
+        const method = id ? 'PUT' : 'POST';
+
+        // Show loading state
+        const saveBtn = document.getElementById('saveQuestionnaireBtn');
+        const originalText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '⏳ Saving...';
+
+        const response = await apiCall(url, { method, body: JSON.stringify(data) });
+
+        if (response.ok) {
+            showToast('Questionnaire saved successfully!');
+            closeModal('questionnaireModal');
+            // Reset form
+            document.getElementById('questionnaireForm').reset();
+            // Reload list
+            loadQuestionnaires();
+        } else {
+            const error = await response.json();
+            showToast(error.detail || 'Failed to save', 'error');
+        }
+
+        // Reset button
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    }
+
+    async function toggleQuestionnaire(id) {
+        const response = await apiCall(`/admin/questionnaires/${id}/toggle`, { method: 'POST' });
+        if (response.ok) {
+            showToast('Status updated');
+            loadQuestionnaires();
+        }
+    }
+
+    async function deleteQuestionnaire(id) {
+        if (!confirm('Are you sure you want to delete this questionnaire? All responses will be deleted.')) return;
+        const response = await apiCall(`/admin/questionnaires/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showToast('Questionnaire deleted');
+            loadQuestionnaires();
+        }
+    }
+
+    function manageQuestions(id, title) {
+        currentQuestionnaireId = id;
+        document.getElementById('questionsModalTitle').textContent = `❓ Questions - ${title}`;
+        openModal('questionsModal');
+        loadQuestions(id);
+    }
+
+    function closeQuestionsModal() {
+        closeModal('questionsModal');
+        currentQuestionnaireId = null;
+    }
+
+    async function loadQuestions(questionnaireId) {
+        const response = await apiCall(`/admin/questionnaires/${questionnaireId}/questions`);
+        if (!response.ok) return;
+        const questions = await response.json();
+
+        const container = document.getElementById('questionsList');
+        container.innerHTML = '';
+
+        if (questions.length === 0) {
+            container.innerHTML = '<p class="text-center text-muted">No questions yet</p>';
+            return;
+        }
+
+        questions.forEach((q, index) => {
+            container.innerHTML += `
+                <div class="question-item">
+                    <div class="question-info">
+                        <span class="question-number">${index + 1}.</span>
+                        <span class="question-text">${q.question_text}</span>
+                        <span class="badge badge-secondary">${q.question_type}</span>
+                    </div>
+                    <div class="question-actions">
+                        <button class="btn btn-sm btn-secondary" onclick="editQuestion(${q.id}, ${q.questionnaire_id})">Edit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteQuestion(${q.id}, ${q.questionnaire_id})">Delete</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function showAddQuestion() {
+        document.getElementById('questionModalTitle').textContent = '➕ Add Question';
+        document.getElementById('questionForm').reset();
+        document.getElementById('questionId').value = '';
+        document.getElementById('questionQuestionnaireId').value = currentQuestionnaireId;
+        document.getElementById('orderNumber').value = 0;
+        document.getElementById('saveQuestionBtn').innerHTML = '✓ Save';
+        document.getElementById('saveQuestionBtn').disabled = false;
+        openModal('questionModal');
+        // Focus on first input
+        setTimeout(() => document.getElementById('questionText').focus(), 100);
+    }
+
+    function editQuestion(id, questionnaireId) {
+        apiCall(`/admin/questions/${id}`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('questionModalTitle').textContent = '✏️ Edit Question';
+                document.getElementById('questionId').value = data.id;
+                document.getElementById('questionQuestionnaireId').value = data.questionnaire_id;
+                document.getElementById('questionText').value = data.question_text;
+                document.getElementById('questionType').value = data.question_type;
+                document.getElementById('orderNumber').value = data.order_number;
+                document.getElementById('saveQuestionBtn').innerHTML = '✓ Save';
+                document.getElementById('saveQuestionBtn').disabled = false;
+                openModal('questionModal');
+            });
+    }
+
+    async function saveQuestion(event) {
+        event.preventDefault();
+        const id = document.getElementById('questionId').value;
+        const data = {
+            questionnaire_id: parseInt(document.getElementById('questionQuestionnaireId').value),
+            question_text: document.getElementById('questionText').value,
+            question_type: document.getElementById('questionType').value,
+            order_number: parseInt(document.getElementById('orderNumber').value)
+        };
+
+        const url = id ? `/admin/questions/${id}` : '/admin/questions';
+        const method = id ? 'PUT' : 'POST';
+
+        // Show loading state
+        const saveBtn = document.getElementById('saveQuestionBtn');
+        const originalText = saveBtn.innerHTML;
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '⏳ Saving...';
+
+        const response = await apiCall(url, { method, body: JSON.stringify(data) });
+
+        if (response.ok) {
+            showToast('Question saved successfully!');
+            closeModal('questionModal');
+            // Reset form
+            document.getElementById('questionForm').reset();
+            // Reload questions list
+            loadQuestions(data.questionnaire_id);
+        } else {
+            const error = await response.json();
+            showToast(error.detail || 'Failed to save', 'error');
+        }
+
+        // Reset button
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    }
+
+    async function deleteQuestion(id, questionnaireId) {
+        if (!confirm('Delete this question?')) return;
+        const response = await apiCall(`/admin/questions/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showToast('Question deleted');
+            loadQuestions(questionnaireId);
+        }
+    }
+
+    function viewResults(id) {
+        window.location.href = `/admin/results.html?id=${id}`;
+    }
+
+    loadQuestionnaires();
+</script>
+{% endblock %}

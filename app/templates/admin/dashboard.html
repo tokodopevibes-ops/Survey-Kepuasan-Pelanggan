@@ -1,0 +1,187 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard - Admin Panel{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-wrapper {
+        position: relative;
+        height: 250px;
+        width: 100%;
+    }
+
+    @media (max-width: 480px) {
+        .chart-wrapper {
+            height: 200px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon stat-icon-blue">📋</div>
+        <div class="stat-content">
+            <div class="stat-label">Total Questionnaires</div>
+            <div class="stat-value" id="totalQuestionnaires">-</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-icon-green">✅</div>
+        <div class="stat-content">
+            <div class="stat-label">Active Questionnaires</div>
+            <div class="stat-value" id="activeQuestionnaires">-</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-icon-purple">👥</div>
+        <div class="stat-content">
+            <div class="stat-label">Total Respondents</div>
+            <div class="stat-value" id="totalRespondents">-</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-icon-orange">⭐</div>
+        <div class="stat-content">
+            <div class="stat-label">Avg Satisfaction</div>
+            <div class="stat-value" id="avgSatisfaction">-</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="charts-section">
+    <div class="chart-container">
+        <h3>Satisfaction Overview</h3>
+        <div class="chart-wrapper">
+            <canvas id="satisfactionChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Responses -->
+<div class="card">
+    <div class="card-header">
+        <h3>Recent Responses</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th class="table-hide-mobile">Submitted</th>
+                    </tr>
+                </thead>
+                <tbody id="recentResponsesBody">
+                    <tr><td colspan="3" class="text-center">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    let satisfactionChart;
+
+    async function loadDashboard() {
+        try {
+            const response = await apiCall('/admin/dashboard');
+            if (!response.ok) throw new Error('Failed to load dashboard');
+            const data = await response.json();
+
+            document.getElementById('totalQuestionnaires').textContent = data.total_questionnaires;
+            document.getElementById('activeQuestionnaires').textContent = data.active_questionnaires;
+            document.getElementById('totalRespondents').textContent = data.total_respondents;
+            document.getElementById('avgSatisfaction').textContent = data.average_satisfaction + '%';
+
+            // Load recent responses
+            const tbody = document.getElementById('recentResponsesBody');
+            tbody.innerHTML = '';
+            if (data.recent_responses.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center">No responses yet</td></tr>';
+            } else {
+                data.recent_responses.forEach(r => {
+                    const date = new Date(r.submitted_at);
+                    const dateStr = date.toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${r.name || 'Anonymous'}</strong></td>
+                            <td class="table-hide-mobile">${r.contact || '-'}</td>
+                            <td>${dateStr}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            createSatisfactionChart(data.average_satisfaction);
+        } catch (error) {
+            showToast('Failed to load dashboard', 'error');
+            console.error(error);
+        }
+    }
+
+    function createSatisfactionChart(avgSatisfaction) {
+        const ctx = document.getElementById('satisfactionChart');
+        if (!ctx) return;
+
+        if (satisfactionChart) {
+            satisfactionChart.destroy();
+        }
+
+        satisfactionChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Puas (81-100%)', 'Cukup (61-80%)', 'Tidak Puas (0-60%)'],
+                datasets: [{
+                    data: [
+                        Math.max(0, avgSatisfaction - 80),
+                        Math.min(20, Math.max(0, avgSatisfaction - 60)),
+                        Math.max(0, 60 - avgSatisfaction)
+                    ],
+                    backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 12,
+                            usePointStyle: true,
+                            font: { size: 11 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.label + ': ' + context.raw.toFixed(1) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Load dashboard on page load
+    loadDashboard();
+</script>
+{% endblock %}

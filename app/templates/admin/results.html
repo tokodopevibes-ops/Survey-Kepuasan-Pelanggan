@@ -1,0 +1,264 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Results - Admin Panel{% endblock %}
+{% block page_title %}Survey Results{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-secondary" onclick="exportResults()">Export CSV</button>
+<button class="btn btn-secondary" onclick="backToQuestionnaires()">Back</button>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-wrapper {
+        position: relative;
+        height: 250px;
+        width: 100%;
+    }
+
+    @media (max-width: 480px) {
+        .chart-wrapper {
+            height: 200px;
+        }
+
+        .rating-bars {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon stat-icon-blue">📊</div>
+        <div class="stat-content">
+            <div class="stat-label">Satisfaction Index</div>
+            <div class="stat-value" id="satisfactionIndex">-</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-icon-purple">👥</div>
+        <div class="stat-content">
+            <div class="stat-label">Total Respondents</div>
+            <div class="stat-value" id="totalRespondents">-</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon stat-icon-green">📝</div>
+        <div class="stat-content">
+            <div class="stat-label">Category</div>
+            <div class="stat-value" id="category">-</div>
+        </div>
+    </div>
+</div>
+
+<!-- Rating Distribution Chart -->
+<div class="card">
+    <div class="card-header">
+        <h3>Rating Distribution</h3>
+    </div>
+    <div class="card-body">
+        <div class="chart-wrapper">
+            <canvas id="ratingChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Question Results -->
+<div class="card">
+    <div class="card-header">
+        <h3>Question Results</h3>
+    </div>
+    <div class="card-body" id="questionResults">
+        Loading...
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const questionnaireId = urlParams.get('id');
+
+    if (!questionnaireId) {
+        window.location.href = '/admin/questionnaires.html';
+    }
+
+    function backToQuestionnaires() {
+        window.location.href = '/admin/questionnaires.html';
+    }
+
+    let resultsData = null;
+    let ratingChart = null;
+
+    async function loadResults() {
+        try {
+            const response = await apiCall(`/admin/results/${questionnaireId}`);
+            if (!response.ok) throw new Error('Failed to load results');
+            resultsData = await response.json();
+
+            // Update page title
+            document.querySelector('[block="page_title"]')?.textContentRemove();
+            document.querySelector('.admin-header h1').textContent = `Results - ${resultsData.questionnaire.title}`;
+
+            // Update summary stats
+            document.getElementById('satisfactionIndex').textContent = resultsData.satisfaction_index + '%';
+            document.getElementById('totalRespondents').textContent = resultsData.total_respondents;
+            document.getElementById('category').textContent = resultsData.category;
+
+            // Update category color
+            const categoryEl = document.getElementById('category');
+            categoryEl.className = 'stat-value';
+            if (resultsData.category === 'Puas') categoryEl.style.color = '#28a745';
+            else if (resultsData.category === 'Cukup') categoryEl.style.color = '#ffc107';
+            else categoryEl.style.color = '#dc3545';
+
+            createRatingChart();
+            displayQuestionResults();
+        } catch (error) {
+            showToast('Failed to load results', 'error');
+            console.error(error);
+        }
+    }
+
+    function createRatingChart() {
+        const totalDistribution = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+
+        resultsData.question_results.forEach(qr => {
+            if (qr.rating_distribution) {
+                for (const [key, value] of Object.entries(qr.rating_distribution)) {
+                    totalDistribution[key] += value;
+                }
+            }
+        });
+
+        const ctx = document.getElementById('ratingChart');
+        if (!ctx) return;
+
+        if (ratingChart) {
+            ratingChart.destroy();
+        }
+
+        ratingChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['1★', '2★', '3★', '4★', '5★'],
+                datasets: [{
+                    label: 'Count',
+                    data: [totalDistribution['1'], totalDistribution['2'], totalDistribution['3'], totalDistribution['4'], totalDistribution['5']],
+                    backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#20c997', '#28a745'],
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+
+    function displayQuestionResults() {
+        const container = document.getElementById('questionResults');
+        container.innerHTML = '';
+
+        resultsData.question_results.forEach((qr, index) => {
+            let html = `
+                <div class="question-result-item">
+                    <div class="question-result-header">
+                        <span class="question-number">${index + 1}.</span>
+                        <span class="question-text">${qr.question_text}</span>
+                        <span class="badge badge-secondary">${qr.question_type}</span>
+                    </div>
+            `;
+
+            if (qr.question_type === 'rating') {
+                html += `<div class="rating-stats">`;
+                html += `<div class="rating-average">
+                    <span class="rating-value">${qr.average_rating || '-'}</span>
+                    <span class="rating-label">Avg Rating</span>
+                </div>`;
+
+                html += `<div class="rating-bars">`;
+                const maxCount = Math.max(...Object.values(qr.rating_distribution), 1);
+                for (let i = 1; i <= 5; i++) {
+                    const count = qr.rating_distribution[String(i)] || 0;
+                    const percentage = (count / maxCount * 100).toFixed(1);
+                    html += `
+                        <div class="rating-bar-item">
+                            <span class="star-label">${i}★</span>
+                            <div class="bar-container">
+                                <div class="bar-fill" style="width: ${percentage}%"></div>
+                            </div>
+                            <span class="bar-count">${count}</span>
+                        </div>
+                    `;
+                }
+                html += `</div></div>`;
+            } else {
+                html += `<div class="text-responses">`;
+                if (qr.text_responses && qr.text_responses.length > 0) {
+                    qr.text_responses.slice(0, 10).forEach(response => {
+                        html += `<div class="text-response-item">"${response}"</div>`;
+                    });
+                    if (qr.text_responses.length > 10) {
+                        html += `<p class="text-muted">...and ${qr.text_responses.length - 10} more</p>`;
+                    }
+                } else {
+                    html += `<p class="text-muted">No text responses yet</p>`;
+                }
+                html += `</div>`;
+            }
+
+            html += `</div>`;
+            container.innerHTML += html;
+        });
+    }
+
+    function exportResults() {
+        if (!resultsData) return;
+
+        let csv = 'Question,Type,Average Rating,Responses\n';
+
+        resultsData.question_results.forEach(qr => {
+            const question = `"${qr.question_text.replace(/"/g, '""')}"`;
+            const type = qr.question_type;
+            const avg = qr.average_rating || '';
+
+            if (type === 'rating') {
+                const dist = qr.rating_distribution;
+                const responses = `${dist['1']},${dist['2']},${dist['3']},${dist['4']},${dist['5']}`;
+                csv += `${question},${type},${avg},"${responses}"\n`;
+            } else {
+                const text = qr.text_responses ? qr.text_responses.slice(0, 5).join('; ') : '';
+                csv += `${question},${type},,"${text.replace(/"/g, '""')}"\n`;
+            }
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `results_${questionnaireId}_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        showToast('Results exported');
+    }
+
+    loadResults();
+</script>
+{% endblock %}

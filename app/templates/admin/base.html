@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Admin Panel - Kuesioner{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Mobile Responsive Styles */
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            margin-right: 1rem;
+            color: white;
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 998;
+        }
+
+        /* Tablet & Below */
+        @media (max-width: 992px) {
+            .admin-sidebar {
+                width: 200px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .mobile-menu-btn {
+                display: block;
+            }
+
+            .admin-sidebar {
+                position: fixed;
+                left: -100%;
+                top: 0;
+                bottom: 0;
+                z-index: 999;
+                transition: left 0.3s ease;
+                width: 280px;
+            }
+
+            .admin-sidebar.open {
+                left: 0;
+            }
+
+            .sidebar-overlay.show {
+                display: block;
+            }
+
+            .admin-layout {
+                flex-direction: column;
+            }
+
+            .admin-main {
+                width: 100%;
+            }
+
+            .admin-header {
+                flex-wrap: wrap;
+                padding: 1rem;
+                gap: 1rem;
+            }
+
+            .admin-header h1 {
+                font-size: 1.25rem;
+            }
+
+            .header-actions {
+                width: 100%;
+                display: flex;
+                gap: 0.5rem;
+            }
+
+            .header-actions .btn {
+                flex: 1;
+            }
+
+            .admin-content {
+                padding: 1rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .stat-card {
+                padding: 1rem;
+            }
+
+            .stat-icon {
+                width: 45px;
+                height: 45px;
+                font-size: 1.25rem;
+            }
+
+            .stat-value {
+                font-size: 1.5rem;
+            }
+
+            /* Card responsive */
+            .card {
+                border-radius: 8px;
+            }
+
+            .card-header {
+                padding: 1rem;
+            }
+
+            .card-header h3 {
+                font-size: 1rem;
+            }
+
+            .card-body {
+                padding: 1rem;
+            }
+
+            /* Table responsive */
+            .table-responsive {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .table {
+                font-size: 0.875rem;
+                white-space: nowrap;
+            }
+
+            .table th,
+            .table td {
+                padding: 0.5rem;
+            }
+
+            /* Hide less important table columns on mobile */
+            .table-hide-mobile th,
+            .table-hide-mobile td {
+                display: none;
+            }
+
+            /* Modal responsive */
+            .modal-content {
+                margin: 1rem;
+                max-width: calc(100% - 2rem);
+                max-height: calc(100vh - 2rem);
+                border-radius: 16px;
+            }
+
+            .modal-header {
+                padding: 1.5rem 1.75rem;
+            }
+
+            .modal-header h2 {
+                font-size: 1.25rem;
+            }
+
+            .modal-body {
+                padding: 1.75rem;
+            }
+
+            .modal-footer {
+                padding: 1.5rem 1.75rem;
+                flex-wrap: wrap;
+            }
+
+            .modal-footer .btn {
+                flex: 1;
+                min-width: 80px;
+            }
+
+            /* Button adjustments */
+            .btn {
+                font-size: 0.875rem;
+                padding: 0.625rem 1rem;
+            }
+
+            .btn-sm {
+                padding: 0.375rem 0.625rem;
+                font-size: 0.75rem;
+            }
+
+            /* Badge responsive */
+            .badge {
+                font-size: 0.625rem;
+                padding: 0.2rem 0.5rem;
+            }
+
+            /* Form responsive */
+            .form-control {
+                font-size: 1rem;
+            }
+
+            textarea.form-control {
+                min-height: 80px;
+            }
+        }
+
+        /* Small Mobile */
+        @media (max-width: 480px) {
+            .admin-header h1 {
+                font-size: 1rem;
+            }
+
+            .stat-card {
+                flex-direction: row;
+                text-align: left;
+                padding: 0.875rem;
+            }
+
+            .stat-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 1.125rem;
+            }
+
+            .stat-value {
+                font-size: 1.25rem;
+            }
+
+            .chart-container h3 {
+                font-size: 0.875rem;
+            }
+
+            .question-result-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .rating-stats {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+
+            .rating-bars {
+                width: 100%;
+            }
+
+            .rating-bar-item {
+                flex-wrap: wrap;
+                gap: 0.25rem;
+            }
+
+            .star-label {
+                width: 30px;
+                font-size: 0.875rem;
+            }
+
+            .bar-count {
+                width: 30px;
+                font-size: 0.875rem;
+            }
+
+            .question-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+
+            .question-actions {
+                width: 100%;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.25rem;
+            }
+
+            .question-actions .btn {
+                flex: 1;
+                min-width: 60px;
+                font-size: 0.75rem;
+                padding: 0.375rem 0.5rem;
+            }
+
+            /* Action buttons in table */
+            .action-buttons {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.25rem;
+            }
+
+            .action-buttons .btn {
+                flex: 1;
+                min-width: 55px;
+                font-size: 0.7rem;
+                padding: 0.25rem 0.375rem;
+            }
+
+            /* Hide more columns on small mobile */
+            .table-hide-small th,
+            .table-hide-small td {
+                display: none;
+            }
+        }
+
+        /* Touch-friendly tap targets */
+        @media (hover: none) and (pointer: coarse) {
+            .btn,
+            .nav-item,
+            .btn-sm {
+                min-height: 44px;
+                min-width: 44px;
+            }
+
+            .modal-close {
+                min-width: 44px;
+                min-height: 44px;
+            }
+        }
+
+        /* Prevent horizontal scroll */
+        body {
+            overflow-x: hidden;
+        }
+
+        .admin-layout {
+            min-height: 100vh;
+        }
+
+        /* Smooth transitions */
+        .admin-sidebar,
+        .sidebar-overlay,
+        .mobile-menu-btn {
+            transition: all 0.3s ease;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="admin-body">
+    <!-- Mobile Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- Modal Overlay for closing modals when clicking outside -->
+    <div id="modalOverlay" class="modal-overlay" style="display: none;" onclick="closeAllModals()"></div>
+
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Kuesioner</h2>
+                <span class="sidebar-subtitle">Admin Panel</span>
+            </div>
+            <nav class="sidebar-nav">
+                {% block nav_items %}
+                <a href="/admin/dashboard.html" class="nav-item">Dashboard</a>
+                <a href="/admin/questionnaires.html" class="nav-item">Questionnaires</a>
+                {% endblock %}
+                <a href="#" onclick="logout()" class="nav-item">Logout</a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="admin-main">
+            <header class="admin-header">
+                <div style="display: flex; align-items: center; width: 100%;">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Toggle menu">
+                        ☰
+                    </button>
+                    <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+                </div>
+                {% block header_actions %}{% endblock %}
+            </header>
+
+            <div class="admin-content">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <div id="toast" class="toast" style="display: none;"></div>
+
+    {% block extra_js %}
+    <script>
+        // Check authentication
+        const token = localStorage.getItem('adminToken');
+        if (!token && !window.location.pathname.includes('/admin/login')) {
+            window.location.href = '/admin/login.html';
+        }
+
+        // Mobile sidebar toggle function
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (sidebar && overlay) {
+                sidebar.classList.toggle('open');
+                overlay.classList.toggle('show');
+            }
+        }
+
+        // Modal functions
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.style.display = 'none';
+            });
+            document.body.style.overflow = '';
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAllModals();
+            }
+        });
+
+        // Close sidebar when clicking nav links
+        document.addEventListener('DOMContentLoaded', function() {
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                if (!item.onclick) {
+                    item.addEventListener('click', function() {
+                        const sidebar = document.getElementById('sidebar');
+                        const overlay = document.getElementById('sidebarOverlay');
+                        if (sidebar) sidebar.classList.remove('open');
+                        if (overlay) overlay.classList.remove('show');
+                    });
+                }
+            });
+        });
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/admin/login.html';
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            if (toast) {
+                toast.textContent = message;
+                toast.className = 'toast toast-' + type;
+                toast.style.display = 'block';
+                setTimeout(() => toast.style.display = 'none', 3000);
+            }
+        }
+
+        async function apiCall(url, options = {}) {
+            const token = localStorage.getItem('adminToken');
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token,
+                    ...options.headers
+                }
+            });
+            if (response.status === 401) logout();
+            return response;
+        }
+    </script>
+    {% endblock %}
+</body>
+</html>
